@@ -14,7 +14,7 @@ import os
 from typing import List
 from pydantic import BaseModel
 
-from picoagents import Agent
+from picoagents import Agent, AssistantMessage
 from picoagents.llm import AnthropicChatCompletionClient
 
 
@@ -91,7 +91,7 @@ async def main():
 
     # Access structured output from the assistant message
     last_message = response.messages[-1]
-    if hasattr(last_message, 'structured_content') and last_message.structured_content:
+    if isinstance(last_message, AssistantMessage) and isinstance(last_message.structured_content, TravelRecommendation):
         rec = last_message.structured_content
         print(f"\nStructured Recommendation:")
         print(f"  Destination: {rec.destination}")
@@ -117,7 +117,7 @@ async def main():
         stream_tokens=False  # Structured output comes at the end
     ):
         event_count += 1
-        if hasattr(event, 'structured_content') and event.structured_content:
+        if isinstance(event, AssistantMessage) and isinstance(event.structured_content, TravelRecommendation):
             print(f"\n✓ Received structured recommendation:")
             print(f"  Destination: {event.structured_content.destination}")
             print(f"  Best time: {', '.join(event.structured_content.best_months[:2])}")
