@@ -81,6 +81,20 @@ examples = [
     "yfinance",
     "python-dotenv",
 ]
+frameworks = [
+    # LangChain + LangGraph (use langchain.agents.create_agent for agents)
+    "langchain>=1.1.0",
+    "langchain-openai>=1.1.0",
+    "langgraph>=1.0.0",
+    # Google ADK
+    "google-adk>=0.1.0",
+    # Microsoft Agent Framework
+    "agent-framework[azure]>=0.1.0",
+    # Anthropic Claude Agent SDK
+    "claude-agent-sdk>=0.1.0",
+    # Common dependencies
+    "python-dotenv",
+]
 all = [
     "picoagents[web]",
     "picoagents[computer-use]",

@@ -49,7 +49,16 @@ class ConversationState(TypedDict):
     approved: bool
 
 
-def poet(state: ConversationState) -> ConversationState:
+class ConversationUpdate(TypedDict, total=False):
+    """Partial state updates returned by nodes."""
+
+    current_haiku: str
+    feedback: str
+    iteration: int
+    approved: bool
+
+
+def poet(state: ConversationState) -> ConversationUpdate:
     """Poet node - writes or revises haikus."""
     llm = get_llm(temperature=0.8)
 
@@ -69,10 +78,13 @@ def poet(state: ConversationState) -> ConversationState:
         )
 
     response = llm.invoke(prompt)
-    return {"current_haiku": response.content, "iteration": state["iteration"] + 1}
+    return {
+        "current_haiku": str(response.content),
+        "iteration": state["iteration"] + 1,
+    }
 
 
-def critic(state: ConversationState) -> ConversationState:
+def critic(state: ConversationState) -> ConversationUpdate:
     """Critic node - reviews haikus and decides if approved."""
     llm = get_llm(temperature=0)
 
@@ -88,7 +100,7 @@ def critic(state: ConversationState) -> ConversationState:
     )
 
     response = llm.invoke(prompt)
-    content = response.content
+    content = str(response.content)
 
     approved = "APPROVED" in content.upper()
     return {"feedback": content, "approved": approved}
@@ -138,7 +150,7 @@ def main():
     print("=" * 50)
 
     # Initial state
-    initial_state = {
+    initial_state: ConversationState = {
         "topic": topic,
         "current_haiku": "",
         "feedback": "",

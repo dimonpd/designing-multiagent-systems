@@ -1,22 +1,27 @@
 """
-Structured Output Example - LangGraph
+Structured Output Example - LangChain
 
 Equivalent to: examples/agents/structured-output.py (PicoAgents)
 
 This example demonstrates how to get structured (typed) responses from
-the model using Pydantic models with LangChain's with_structured_output.
+the model using Pydantic models with LangChain's create_agent.
+
+The new create_agent API supports response_format parameter for structured output,
+which automatically handles tool-based or provider-specific structured output.
 
 Run: python examples/frameworks/langgraph/agents/structured_output.py
 
 Prerequisites:
-    - pip install langgraph langchain-openai python-dotenv
-    - Set OPENAI_API_KEY environment variable
+    - pip install langchain langchain-openai python-dotenv
+    - Set AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_API_KEY environment variables
 """
 
 from pathlib import Path
 from typing import List
 
 from dotenv import load_dotenv
+from langchain.agents import create_agent
+from langchain_core.messages import HumanMessage
 from langchain_openai import AzureChatOpenAI
 from pydantic import BaseModel, Field
 
@@ -45,13 +50,19 @@ class PersonInfo(BaseModel):
 
 def main():
     """Demonstrate structured output with Pydantic models."""
-    print("=== Structured Output Example (LangGraph) ===\n")
+    print("=== Structured Output Example (LangChain) ===\n")
 
-    # Create the LLM with structured output
+    # Create the LLM
     llm = get_llm()
 
-    # Bind the structured output schema to the model
-    structured_llm = llm.with_structured_output(PersonInfo)
+    # Create agent with structured output using response_format
+    # This uses the new create_agent API which handles structured output automatically
+    agent = create_agent(
+        model=llm,
+        tools=[],  # No tools needed - structured output is handled separately
+        system_prompt="You are a helpful assistant that creates person profiles.",
+        response_format=PersonInfo,  # Specify the Pydantic model for structured output
+    )
 
     prompt = (
         "Create a profile for a software engineer named Alice who is "
@@ -61,13 +72,19 @@ def main():
     print(f"Prompt: {prompt}\n")
 
     # Get structured response
-    person: PersonInfo = structured_llm.invoke(prompt)
+    result = agent.invoke({"messages": [HumanMessage(content=prompt)]})
 
-    print("Structured Output:")
-    print(f"  Name: {person.name}")
-    print(f"  Age: {person.age}")
-    print(f"  Occupation: {person.occupation}")
-    print(f"  Skills: {', '.join(person.skills)}")
+    # Access the structured response directly from state
+    person = result.get("structured_response")
+    if person:
+        print("Structured Output:")
+        print(f"  Name: {person.name}")
+        print(f"  Age: {person.age}")
+        print(f"  Occupation: {person.occupation}")
+        print(f"  Skills: {', '.join(person.skills)}")
+    else:
+        # Fallback to message content if structured_response not available
+        print(f"Response: {result['messages'][-1].content}")
 
     print("\n" + "=" * 50)
 
@@ -79,13 +96,17 @@ def main():
 
     print(f"\nPrompt: {prompt2}\n")
 
-    person2: PersonInfo = structured_llm.invoke(prompt2)
+    result2 = agent.invoke({"messages": [HumanMessage(content=prompt2)]})
 
-    print("Structured Output:")
-    print(f"  Name: {person2.name}")
-    print(f"  Age: {person2.age}")
-    print(f"  Occupation: {person2.occupation}")
-    print(f"  Skills: {', '.join(person2.skills)}")
+    person2 = result2.get("structured_response")
+    if person2:
+        print("Structured Output:")
+        print(f"  Name: {person2.name}")
+        print(f"  Age: {person2.age}")
+        print(f"  Occupation: {person2.occupation}")
+        print(f"  Skills: {', '.join(person2.skills)}")
+    else:
+        print(f"Response: {result2['messages'][-1].content}")
 
 
 if __name__ == "__main__":

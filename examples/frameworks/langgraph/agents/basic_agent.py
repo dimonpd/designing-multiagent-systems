@@ -1,28 +1,29 @@
 """
-Basic Agent Example - LangGraph
+Basic Agent Example - LangChain
 
 Equivalent to: examples/agents/basic-agent.py (PicoAgents)
 
-This example demonstrates a basic agent with tool calling using LangGraph's
-create_react_agent helper, which provides a ReAct-style agent.
+This example demonstrates a basic agent with tool calling using LangChain's
+new create_agent function, which provides middleware support and is the
+recommended way to build agents.
 
 In PicoAgents, we use BasicAgent with a list of tools.
-In LangGraph, we use create_react_agent with tool definitions.
+In LangChain, we use create_agent with tool definitions.
 
 Run: python examples/frameworks/langgraph/agents/basic_agent.py
 
 Prerequisites:
-    - pip install langgraph langchain-openai python-dotenv
-    - Set OPENAI_API_KEY environment variable
+    - pip install langchain langchain-openai python-dotenv
+    - Set AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_API_KEY environment variables
 """
 
-import os
 from pathlib import Path
 
 from dotenv import load_dotenv
+from langchain.agents import create_agent
+from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
 from langchain_openai import AzureChatOpenAI
-from langgraph.prebuilt import create_react_agent
 
 # Load environment variables from picoagents .env
 env_path = Path(__file__).parents[4] / "picoagents" / ".env"
@@ -68,16 +69,18 @@ def calculate(expression: str) -> str:
 
 
 def main():
-    """Demonstrate a basic ReAct agent with tools."""
-    print("=== Basic Agent Example (LangGraph) ===\n")
+    """Demonstrate a basic agent with tools using create_agent."""
+    print("=== Basic Agent Example (LangChain) ===\n")
 
     # Create the LLM
     llm = get_llm()
 
-    # Create the ReAct agent with tools
-    agent = create_react_agent(
+    # Create the agent with tools using the new create_agent API
+    # This is the recommended way to build agents in LangChain v1
+    agent = create_agent(
         model=llm,
         tools=[get_weather, calculate],
+        system_prompt="You are a helpful assistant with access to weather and calculator tools.",
     )
 
     print("Agent created with tools: get_weather, calculate\n")
@@ -94,7 +97,7 @@ def main():
         print("-" * 40)
 
         # Invoke the agent
-        result = agent.invoke({"messages": [("user", task)]})
+        result = agent.invoke({"messages": [HumanMessage(content=task)]})
 
         # Get the final response
         final_message = result["messages"][-1]

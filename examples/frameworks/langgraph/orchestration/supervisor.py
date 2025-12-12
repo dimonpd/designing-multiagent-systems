@@ -48,7 +48,17 @@ class SupervisorState(TypedDict):
     completed: bool
 
 
-def supervisor(state: SupervisorState) -> SupervisorState:
+class SupervisorUpdate(TypedDict, total=False):
+    """Partial state updates returned by nodes."""
+
+    next_worker: str
+    research_output: str
+    analysis_output: str
+    final_response: str
+    completed: bool
+
+
+def supervisor(state: SupervisorState) -> SupervisorUpdate:
     """Supervisor decides which worker to delegate to."""
     llm = get_llm(temperature=0)
 
@@ -73,7 +83,7 @@ Based on the task and current progress, which worker should handle the next step
 Respond with exactly one of: researcher, analyst, or FINISH"""
 
     response = llm.invoke(prompt)
-    next_worker = response.content.strip().lower()
+    next_worker = str(response.content).strip().lower()
 
     # Normalize the response
     if "researcher" in next_worker:
@@ -86,7 +96,7 @@ Respond with exactly one of: researcher, analyst, or FINISH"""
     return {"next_worker": next_worker}
 
 
-def researcher(state: SupervisorState) -> SupervisorState:
+def researcher(state: SupervisorState) -> SupervisorUpdate:
     """Research worker - gathers information."""
     llm = get_llm(temperature=0)
 
@@ -97,10 +107,10 @@ def researcher(state: SupervisorState) -> SupervisorState:
     )
 
     response = llm.invoke(prompt)
-    return {"research_output": response.content}
+    return {"research_output": str(response.content)}
 
 
-def analyst(state: SupervisorState) -> SupervisorState:
+def analyst(state: SupervisorState) -> SupervisorUpdate:
     """Analyst worker - analyzes information."""
     llm = get_llm(temperature=0)
 
@@ -114,10 +124,10 @@ def analyst(state: SupervisorState) -> SupervisorState:
     )
 
     response = llm.invoke(prompt)
-    return {"analysis_output": response.content}
+    return {"analysis_output": str(response.content)}
 
 
-def finisher(state: SupervisorState) -> SupervisorState:
+def finisher(state: SupervisorState) -> SupervisorUpdate:
     """Finisher - creates the final response."""
     llm = get_llm(temperature=0)
 
@@ -132,7 +142,7 @@ def finisher(state: SupervisorState) -> SupervisorState:
     )
 
     response = llm.invoke(prompt)
-    return {"final_response": response.content, "completed": True}
+    return {"final_response": str(response.content), "completed": True}
 
 
 def route_to_worker(
@@ -190,7 +200,7 @@ def main():
     print("=" * 50)
 
     # Initial state
-    initial_state = {
+    initial_state: SupervisorState = {
         "task": task,
         "next_worker": "",
         "research_output": "",
