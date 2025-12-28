@@ -5,6 +5,16 @@ All notable changes to PicoAgents will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] - 2025-12-28
+
+### Fixed
+
+- Fixed `AgentResponse.__str__()` to display full conversation content instead of only metadata. Previously, printing a response would only show usage statistics; now it shows all messages followed by usage stats.
+
+### Changed
+
+- Improved user experience when printing agent responses - users can now simply `print(response)` to see the complete conversation history.
+
 ## [0.3.1] - 2025-11-23
 
 ### Added

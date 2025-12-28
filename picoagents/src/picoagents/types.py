@@ -109,7 +109,10 @@ class AgentResponse(BaseModel):
         return "No messages"
 
     def __str__(self) -> str:
-        """Returns a user-friendly string representation with key metrics."""
+        """Returns a user-friendly string representation with messages and usage."""
+        # Concat all message str representations
+        messages_str = "\n".join(str(msg) for msg in self.messages)
+
         # Format duration
         duration_s = self.usage.duration_ms / 1000
 
@@ -132,15 +135,15 @@ class AgentResponse(BaseModel):
             else ""
         )
 
-        time_str = self.timestamp.strftime("%H:%M:%S")
-
         # Add approval status if needed
         if self.needs_approval:
             approval_str = f" | ⚠️ {len(self.approval_requests)} approvals needed"
         else:
             approval_str = f" | finish: {self.finish_reason}"
 
-        return f"[{self.source}] {time_str} | duration: {duration_s:.1f}s, tokens: in:{tokens_in}, out:{tokens_out}{cost_str}{approval_str}"
+        usage_line = f"[usage] duration: {duration_s:.1f}s, tokens: in:{tokens_in}, out:{tokens_out}{cost_str}{approval_str}"
+
+        return f"{messages_str}\n\n{usage_line}"
 
     def __repr__(self) -> str:
         """Returns an unambiguous, developer-friendly representation."""
