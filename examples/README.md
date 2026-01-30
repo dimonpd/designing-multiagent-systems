@@ -41,7 +41,8 @@ Explicit control patterns from Chapter 5.
 | File | Description |
 |------|-------------|
 | `sequential.py` | Chain steps with typed inputs/outputs |
-| `general.py` | Conditional branching and parallel steps |
+| `conditional.py` | Conditional branching and fan-in merge |
+| `general.py` | Extended sequential pipeline with fluent API |
 | `checkpoint_example.py` | Save and resume workflow state |
 | `data_visualization/` | Complete data analysis workflow |
 | `yc_analysis/` | Y Combinator startup analysis workflow |
