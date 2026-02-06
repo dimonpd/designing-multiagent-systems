@@ -19,6 +19,12 @@ tests/test_fresh_install.sh
 
 test_fresh_install.sh
 
+# Context engineering example (WIP, implementing in picoagents instead)
+examples/frameworks/agent-framework/contextengineering/
+
+# Internal design docs
+picoagents/docs/design/
+
 # Agent example artifacts - created when running agent examples
 agent_workspace/
 agent_memory/

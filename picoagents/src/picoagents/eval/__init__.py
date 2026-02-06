@@ -3,6 +3,13 @@ Evaluation system for picoagents.
 
 This module provides a simple, type-safe evaluation framework for testing
 and comparing different picoagents components (agents, models, orchestrators).
+
+Includes a benchmark system for comparing agent configurations:
+
+    >>> from picoagents.eval import benchmarks
+    >>> from picoagents.eval.benchmarks import (
+    ...     AgentConfig, BenchmarkRunner, load_builtin_dataset
+    ... )
 """
 
 from ._base import BaseEvalJudge, BaseEvalRunner, BaseEvalTarget
@@ -16,6 +23,9 @@ from .judges import (
     FuzzyMatchJudge,
     LLMEvalJudge,
 )
+
+# Benchmark system - import as submodule
+from . import benchmarks
 
 __all__ = [
     # Base classes
@@ -35,4 +45,6 @@ __all__ = [
     "FuzzyMatchJudge",
     "ContainsJudge",
     "CompositeJudge",
+    # Benchmark system
+    "benchmarks",
 ]

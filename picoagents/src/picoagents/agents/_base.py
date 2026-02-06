@@ -16,6 +16,7 @@ from .._cancellation_token import CancellationToken
 from .._component_config import ComponentBase
 from .._middleware import BaseMiddleware, MiddlewareChain
 from ..context import AgentContext
+from ..context_strategies import ContextStrategy
 from ..llm import BaseChatCompletionClient
 from ..memory import BaseMemory
 from ..messages import Message, SystemMessage, UserMessage
@@ -49,6 +50,9 @@ class BaseAgent(ComponentBase[BaseModel], ABC):
         summarize_tool_result: bool = True,
         required_tools: Optional[List[str]] = None,
         example_tasks: Optional[List[str]] = None,
+        context_strategy: Optional[ContextStrategy] = None,
+        start_hooks: Optional[List] = None,
+        end_hooks: Optional[List] = None,
         **kwargs: Any,
     ):
         """
@@ -68,6 +72,15 @@ class BaseAgent(ComponentBase[BaseModel], ABC):
             summarize_tool_result: If False, agent stops after tool execution without LLM summarization
             required_tools: Optional list of tool names that MUST be used (forced tool use)
             example_tasks: Optional list of example tasks to help users discover agent capabilities
+            context_strategy: Optional strategy for context compaction during tool loops.
+                When provided, the strategy's prepare_context() method is called BEFORE
+                each LLM call in the tool loop, allowing it to compact/trim messages.
+                The compacted list replaces the working list for subsequent iterations.
+            start_hooks: Optional list of BaseStartHook instances. Run deterministically
+                before the first LLM call - can inject instructions (e.g., force planning).
+            end_hooks: Optional list of BaseEndHook instances. Run deterministically when
+                the agent would stop (no tool calls). Can inject a UserMessage to resume
+                the loop (e.g., check todo completion).
             **kwargs: Additional configuration
         """
         self.name = name
@@ -83,6 +96,9 @@ class BaseAgent(ComponentBase[BaseModel], ABC):
         self.summarize_tool_result = summarize_tool_result
         self.required_tools = required_tools or []
         self.example_tasks = example_tasks or []
+        self.context_strategy = context_strategy
+        self.start_hooks = start_hooks or []
+        self.end_hooks = end_hooks or []
 
         # Validate configuration
         self._validate_configuration()

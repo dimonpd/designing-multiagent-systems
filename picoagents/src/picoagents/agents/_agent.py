@@ -277,6 +277,27 @@ class Agent(Component[AgentConfig], BaseAgent):
             # Pass empty list since context messages are added inside _prepare_llm_messages
             llm_messages = await self._prepare_llm_messages([])
 
+            # === DETERMINISTIC START HOOKS ===
+            # Run before the first LLM call. These are Python code, not LLM-controlled.
+            # Hooks can inject UserMessages (e.g., "create a plan first").
+            loop_ctx = None
+            if self.start_hooks or self.end_hooks:
+                from .._hooks import LoopContext
+
+                loop_ctx = LoopContext(
+                    agent_context=working_context,
+                    llm_messages=llm_messages,
+                    agent_name=self.name,
+                )
+                for hook in self.start_hooks:
+                    injection = await hook.on_start(loop_ctx)
+                    if injection:
+                        hook_msg = UserMessage(
+                            content=injection, source="hook"
+                        )
+                        working_context.add_message(hook_msg)
+                        llm_messages.append(hook_msg)
+
             # 3. Make initial LLM call
             if verbose:
                 yield ModelCallEvent(
@@ -297,6 +318,13 @@ class Agent(Component[AgentConfig], BaseAgent):
                     # Check for cancellation at the start of each iteration
                     if cancellation_token and cancellation_token.is_cancelled():
                         raise asyncio.CancelledError()
+
+                    # === CONTEXT COMPACTION HOOK ===
+                    # Apply context strategy BEFORE each LLM call.
+                    # This is critical: the compacted list REPLACES llm_messages,
+                    # so subsequent iterations work with bounded context.
+                    if self.context_strategy:
+                        llm_messages = self.context_strategy.prepare_context(llm_messages)
 
                     # Get tools for LLM if available
                     tools = self._get_tools_for_llm() if self.tools else None
@@ -558,7 +586,30 @@ class Agent(Component[AgentConfig], BaseAgent):
                         iteration += 1
                         continue
 
-                    # No tool calls, we're done
+                    # No tool calls - check end hooks before stopping.
+                    # End hooks are deterministic Python code that can
+                    # inject a UserMessage to resume the loop.
+                    should_continue = False
+                    if loop_ctx is not None:
+                        loop_ctx.iteration = iteration
+                        loop_ctx.llm_messages = llm_messages
+
+                        for hook in self.end_hooks:
+                            injection = await hook.on_end(loop_ctx)
+                            if injection:
+                                resume_msg = UserMessage(
+                                    content=injection,
+                                    source="hook",
+                                )
+                                working_context.add_message(resume_msg)
+                                llm_messages.append(resume_msg)
+                                loop_ctx.restart_count += 1
+                                should_continue = True
+                                break  # First hook to inject wins
+
+                    if should_continue:
+                        iteration += 1
+                        continue
                     break
 
                 except asyncio.CancelledError:

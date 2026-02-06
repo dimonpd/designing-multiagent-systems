@@ -43,6 +43,18 @@ from ._middleware import (
     RateLimitMiddleware,
 )
 
+# Deterministic loop hooks
+from ._hooks import (
+    BaseEndHook,
+    BaseStartHook,
+    CompletionCheckHook,
+    CompositeTermination,
+    LoopContext,
+    MaxRestartsTermination,
+    PlanningHook,
+    TerminationCondition,
+)
+
 # Agent implementations
 from .agents import (
     Agent,
@@ -82,6 +94,14 @@ from .context import (
     AgentContext,
     ToolApprovalRequest,
     ToolApprovalResponse,
+)
+
+# Context strategies for compaction
+from .context_strategies import (
+    ContextStrategy,
+    HeadTailStrategy,
+    NoCompactionStrategy,
+    SlidingWindowStrategy,
 )
 
 # Core message types
@@ -149,6 +169,11 @@ __all__ = [
     "AgentContext",
     "ToolApprovalRequest",
     "ToolApprovalResponse",
+    # Context Strategies
+    "ContextStrategy",
+    "HeadTailStrategy",
+    "SlidingWindowStrategy",
+    "NoCompactionStrategy",
     # Messages
     "Message",
     "SystemMessage",

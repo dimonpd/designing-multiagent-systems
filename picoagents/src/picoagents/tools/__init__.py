@@ -33,6 +33,25 @@ except ImportError:
 
 from ._coding_tools import create_coding_tools
 
+# Context engineering tools
+from ._context_tools import (
+    MultiEditTool,
+    SkillsTool,
+    TaskTool,
+    TodoListSessionsTool,
+    TodoReadTool,
+    TodoWriteTool,
+    create_context_engineering_tools,
+    create_multi_edit_tool,
+    create_skills_tool,
+    create_task_tool,
+    create_todo_tools,
+    get_current_session_id,
+    list_todo_sessions,
+    set_session_id,
+    set_todo_path,
+)
+
 # MCP support (optional dependency)
 try:
     from ._mcp import (
@@ -75,6 +94,22 @@ __all__ = [
     "ArxivSearchTool",
     "YouTubeCaptionTool",
     "RESEARCH_TOOLS_AVAILABLE",
+    # Context engineering tools
+    "TaskTool",
+    "TodoWriteTool",
+    "TodoReadTool",
+    "TodoListSessionsTool",
+    "SkillsTool",
+    "MultiEditTool",
+    "create_task_tool",
+    "create_todo_tools",
+    "create_skills_tool",
+    "create_multi_edit_tool",
+    "create_context_engineering_tools",
+    "set_todo_path",
+    "set_session_id",
+    "get_current_session_id",
+    "list_todo_sessions",
     # MCP integration
     "MCPTool",
     "MCPClientManager",
