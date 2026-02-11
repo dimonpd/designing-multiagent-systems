@@ -74,6 +74,7 @@ class AzureOpenAIChatCompletionClient(
         api_key: Optional[str] = None,
         api_version: str = "2024-10-21",
         azure_deployment: Optional[str] = None,
+        temperature: Optional[float] = None,
         **kwargs: Any,
     ):
         """
@@ -85,6 +86,7 @@ class AzureOpenAIChatCompletionClient(
             api_key: Azure OpenAI API key (will use AZURE_OPENAI_API_KEY env var if not provided)
             api_version: Azure OpenAI API version (default: "2024-10-21")
             azure_deployment: Deployment name in Azure (if different from model name)
+            temperature: Default temperature for completions (passed on each request)
             **kwargs: Additional Azure OpenAI client configuration
         """
         super().__init__(model, api_key, **kwargs)
@@ -93,6 +95,7 @@ class AzureOpenAIChatCompletionClient(
         self.azure_deployment = azure_deployment or model
         self.azure_endpoint = azure_endpoint
         self.api_version = api_version
+        self.temperature = temperature
 
         # Validate required parameters
         if not azure_endpoint:
@@ -136,6 +139,10 @@ class AzureOpenAIChatCompletionClient(
                 "messages": api_messages,
                 **kwargs,
             }
+
+            # Add default temperature if set and not overridden by kwargs
+            if self.temperature is not None and "temperature" not in request_params:
+                request_params["temperature"] = self.temperature
 
             # Add tools if provided
             if tools:
@@ -285,6 +292,10 @@ class AzureOpenAIChatCompletionClient(
                 "stream": True,
                 **kwargs,
             }
+
+            # Add default temperature if set and not overridden by kwargs
+            if self.temperature is not None and "temperature" not in request_params:
+                request_params["temperature"] = self.temperature
 
             # Add stream options - default to including usage for token tracking
             if stream_options is None:

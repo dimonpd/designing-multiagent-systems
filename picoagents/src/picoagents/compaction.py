@@ -6,22 +6,22 @@ the tool loop, and the returned (potentially compacted) message list continues
 to the next iteration.
 
 The key insight is that compaction must happen INSIDE the tool loop with
-reassignment: `messages = strategy.prepare_context(messages)`. This ensures
+reassignment: `messages = strategy.compact(messages)`. This ensures
 the compacted list is used for subsequent iterations, actually reducing
 cumulative token usage.
 
 Example:
     from picoagents import Agent
-    from picoagents.context_strategies import HeadTailStrategy
+    from picoagents.compaction import HeadTailCompaction
 
-    # Create strategy with token budget
-    strategy = HeadTailStrategy(token_budget=100_000, head_ratio=0.2)
+    # Create compaction strategy with token budget
+    compaction = HeadTailCompaction(token_budget=100_000, head_ratio=0.2)
 
-    # Agent uses strategy for context management
+    # Agent uses compaction for context management
     agent = Agent(
         name="assistant",
         ...,
-        context_strategy=strategy,
+        compaction=compaction,
     )
 """
 
@@ -33,11 +33,11 @@ from .messages import AssistantMessage, Message, ToolMessage
 
 
 @runtime_checkable
-class ContextStrategy(Protocol):
-    """Protocol for context management strategies.
+class CompactionStrategy(Protocol):
+    """Protocol for context compaction strategies.
 
     Called BEFORE each LLM call in the tool loop, allowing
-    the strategy to modify the message list. The returned list
+    the strategy to compact the message list. The returned list
     REPLACES the working message list for subsequent iterations.
 
     Important: Implementations must preserve "atomic groups" - assistant
@@ -46,8 +46,8 @@ class ContextStrategy(Protocol):
     """
 
     @abstractmethod
-    def prepare_context(self, messages: List[Message]) -> List[Message]:
-        """Prepare messages for the next LLM call.
+    def compact(self, messages: List[Message]) -> List[Message]:
+        """Compact messages for the next LLM call.
 
         Args:
             messages: Current message list
@@ -59,24 +59,24 @@ class ContextStrategy(Protocol):
         ...
 
 
-class NoCompactionStrategy:
-    """Baseline strategy: no compaction, context grows unbounded.
+class NoCompaction:
+    """Baseline: no compaction, context grows unbounded.
 
     Use this for benchmarking to see how context grows without management,
     or for short tasks where context limits won't be hit.
 
     Example:
-        strategy = NoCompactionStrategy()
-        agent = Agent(..., context_strategy=strategy)
+        compaction = NoCompaction()
+        agent = Agent(..., compaction=compaction)
     """
 
-    def prepare_context(self, messages: List[Message]) -> List[Message]:
+    def compact(self, messages: List[Message]) -> List[Message]:
         """Return messages unchanged."""
         return messages
 
 
 @dataclass
-class HeadTailStrategy:
+class HeadTailCompaction:
     """Token-aware head+tail compaction strategy.
 
     Preserves:
@@ -95,15 +95,15 @@ class HeadTailStrategy:
         model: Model name for tiktoken encoding (default: "gpt-4o")
 
     Example:
-        strategy = HeadTailStrategy(
+        compaction = HeadTailCompaction(
             token_budget=50_000,
             head_ratio=0.3,  # 30% head, 70% tail
         )
-        agent = Agent(..., context_strategy=strategy)
+        agent = Agent(..., compaction=compaction)
 
     Statistics:
-        After running, check `strategy.compaction_count` and
-        `strategy.total_tokens_saved` for compaction metrics.
+        After running, check `compaction.compaction_count` and
+        `compaction.total_tokens_saved` for compaction metrics.
     """
 
     token_budget: int = 100_000
@@ -201,7 +201,7 @@ class HeadTailStrategy:
 
         return groups
 
-    def prepare_context(self, messages: List[Message]) -> List[Message]:
+    def compact(self, messages: List[Message]) -> List[Message]:
         """Compact messages if over budget.
 
         Preserves head (system prompt, initial context) and tail (recent work),
@@ -266,14 +266,14 @@ class HeadTailStrategy:
 
 
 @dataclass
-class SlidingWindowStrategy:
+class SlidingWindowCompaction:
     """Keep only recent messages within budget.
 
     Always preserves the system message (if present) plus the most
     recent messages that fit in the budget. Respects atomic groups
     (tool calls and their results must stay together).
 
-    Simpler than HeadTailStrategy but may lose important early context.
+    Simpler than HeadTailCompaction but may lose important early context.
     Best for conversational agents where recent context matters most.
 
     Args:
@@ -281,8 +281,8 @@ class SlidingWindowStrategy:
         model: Model name for tiktoken encoding (default: "gpt-4o")
 
     Example:
-        strategy = SlidingWindowStrategy(token_budget=50_000)
-        agent = Agent(..., context_strategy=strategy)
+        compaction = SlidingWindowCompaction(token_budget=50_000)
+        agent = Agent(..., compaction=compaction)
     """
 
     token_budget: int = 100_000
@@ -355,7 +355,7 @@ class SlidingWindowStrategy:
 
         return groups
 
-    def prepare_context(self, messages: List[Message]) -> List[Message]:
+    def compact(self, messages: List[Message]) -> List[Message]:
         """Keep system message + most recent messages within budget."""
         if not messages:
             return messages

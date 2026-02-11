@@ -19,8 +19,8 @@ Example:
     >>>
     >>> # Define configurations to compare
     >>> configs = [
-    ...     AgentConfig(name="baseline", context_strategy=None),
-    ...     AgentConfig(name="head_tail", context_strategy="head_tail"),
+    ...     AgentConfig(name="baseline", compaction=None),
+    ...     AgentConfig(name="head_tail", compaction="head_tail"),
     ... ]
     >>>
     >>> # Run benchmark

@@ -25,7 +25,7 @@ from picoagents import (
     UserMessage,
     ToolCallRequest,
 )
-from picoagents.context_strategies import HeadTailStrategy, NoCompactionStrategy
+from picoagents.compaction import HeadTailCompaction, NoCompaction
 from picoagents.tools import BaseTool
 from picoagents.types import ToolResult
 from typing import Any, Dict, List
@@ -71,19 +71,19 @@ class TrackingStrategy:
     """Strategy that tracks calls and message counts for verification."""
 
     def __init__(self, inner_strategy=None, token_budget: int = 100_000):
-        self.inner_strategy = inner_strategy or NoCompactionStrategy()
+        self.inner_strategy = inner_strategy or NoCompaction()
         self.token_budget = token_budget
         self.call_count = 0
         self.message_counts_before: List[int] = []
         self.message_counts_after: List[int] = []
 
-    def prepare_context(self, messages):
+    def compact(self, messages):
         self.call_count += 1
         before = len(messages)
         self.message_counts_before.append(before)
 
         # Delegate to inner strategy
-        result = self.inner_strategy.prepare_context(messages)
+        result = self.inner_strategy.compact(messages)
 
         after = len(result)
         self.message_counts_after.append(after)
@@ -96,7 +96,7 @@ def simulate_tool_loop():
     """Simulate the agent tool loop to demonstrate compaction behavior.
 
     This is the most direct way to verify the MiniAgent fix works:
-    messages = strategy.prepare_context(messages) - the reassignment!
+    messages = strategy.compact(messages) - the reassignment!
     """
     print("=" * 60)
     print("EXPERIMENT 1: Simulated Tool Loop with HeadTail Compaction")
@@ -104,7 +104,7 @@ def simulate_tool_loop():
     print()
 
     # Use a small budget to force compaction
-    inner_strategy = HeadTailStrategy(token_budget=500, head_ratio=0.3)
+    inner_strategy = HeadTailCompaction(token_budget=500, head_ratio=0.3)
     tracking = TrackingStrategy(inner_strategy)
 
     messages = [
@@ -120,7 +120,7 @@ def simulate_tool_loop():
         print(f"--- Iteration {iteration + 1} ---")
 
         # KEY: This is the MiniAgent pattern - reassignment
-        messages = tracking.prepare_context(messages)
+        messages = tracking.compact(messages)
 
         # Simulate LLM returning tool call
         messages.append(
@@ -196,7 +196,7 @@ def compare_with_no_compaction():
     print()
 
     # Run without compaction
-    no_compact_strategy = NoCompactionStrategy()
+    no_compact_strategy = NoCompaction()
     tracking_no = TrackingStrategy(no_compact_strategy)
 
     messages_no = [
@@ -205,13 +205,13 @@ def compare_with_no_compaction():
     ]
 
     for _ in range(5):
-        messages_no = tracking_no.prepare_context(messages_no)
+        messages_no = tracking_no.compact(messages_no)
         messages_no.append(AssistantMessage(content="Response " * 100, source="assistant"))
 
     print(f"WITHOUT compaction: Final message count = {len(messages_no)}")
 
     # Run with compaction
-    compact_strategy = HeadTailStrategy(token_budget=200, head_ratio=0.3)
+    compact_strategy = HeadTailCompaction(token_budget=200, head_ratio=0.3)
     tracking_yes = TrackingStrategy(compact_strategy)
 
     messages_yes = [
@@ -220,7 +220,7 @@ def compare_with_no_compaction():
     ]
 
     for _ in range(5):
-        messages_yes = tracking_yes.prepare_context(messages_yes)
+        messages_yes = tracking_yes.compact(messages_yes)
         messages_yes.append(AssistantMessage(content="Response " * 100, source="assistant"))
 
     print(f"WITH compaction: Final message count = {len(messages_yes)}")
@@ -242,7 +242,7 @@ def main():
     print("successfully ported to PicoAgents. The key insight is that")
     print("compaction must happen INSIDE the tool loop with reassignment:")
     print()
-    print("    messages = strategy.prepare_context(messages)")
+    print("    messages = strategy.compact(messages)")
     print()
     print("This ensures the compacted list persists to subsequent iterations,")
     print("actually reducing cumulative token usage.")

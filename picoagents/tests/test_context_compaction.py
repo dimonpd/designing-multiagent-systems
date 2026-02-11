@@ -32,11 +32,11 @@ from picoagents import (
     UserMessage,
     ToolCallRequest,
 )
-from picoagents.context_strategies import (
-    ContextStrategy,
-    HeadTailStrategy,
-    NoCompactionStrategy,
-    SlidingWindowStrategy,
+from picoagents.compaction import (
+    CompactionStrategy,
+    HeadTailCompaction,
+    NoCompaction,
+    SlidingWindowCompaction,
 )
 from picoagents.tools import BaseTool
 from picoagents.types import ToolResult
@@ -78,14 +78,14 @@ class MockTool(BaseTool):
 
 
 class TrackingStrategy:
-    """Strategy that tracks when prepare_context is called."""
+    """Strategy that tracks when compact is called."""
 
     def __init__(self, token_budget: int = 100_000):
         self.token_budget = token_budget
         self.call_count = 0
         self.message_counts: List[int] = []
 
-    def prepare_context(self, messages: List[Message]) -> List[Message]:
+    def compact(self, messages: List[Message]) -> List[Message]:
         self.call_count += 1
         self.message_counts.append(len(messages))
         # Don't actually compact - just track
@@ -95,45 +95,45 @@ class TrackingStrategy:
 # === Unit Tests for Strategies ===
 
 
-class TestNoCompactionStrategy:
-    """Test NoCompactionStrategy returns messages unchanged."""
+class TestNoCompaction:
+    """Test NoCompaction returns messages unchanged."""
 
     def test_returns_unchanged(self):
-        strategy = NoCompactionStrategy()
+        strategy = NoCompaction()
         messages = [
             SystemMessage(content="You are helpful", source="system"),
             UserMessage(content="Hello", source="user"),
         ]
-        result = strategy.prepare_context(messages)
+        result = strategy.compact(messages)
         assert result == messages
         assert len(result) == 2
 
 
-class TestHeadTailStrategy:
-    """Test HeadTailStrategy compaction logic."""
+class TestHeadTailCompaction:
+    """Test HeadTailCompaction logic."""
 
     def test_no_compaction_under_budget(self):
         """Messages under budget should pass through unchanged."""
-        strategy = HeadTailStrategy(token_budget=100_000)
+        strategy = HeadTailCompaction(token_budget=100_000)
         messages = [
             SystemMessage(content="System", source="system"),
             UserMessage(content="Hello", source="user"),
         ]
-        result = strategy.prepare_context(messages)
+        result = strategy.compact(messages)
         assert len(result) == len(messages)
         assert strategy.compaction_count == 0
 
     def test_compaction_over_budget(self):
         """Messages over budget should be compacted."""
         # Use very low budget to force compaction
-        strategy = HeadTailStrategy(token_budget=50, head_ratio=0.5)
+        strategy = HeadTailCompaction(token_budget=50, head_ratio=0.5)
 
         # Create many messages to exceed budget
         messages = [SystemMessage(content="System prompt", source="system")]
         for i in range(20):
             messages.append(UserMessage(content=f"Message {i} " * 10, source="user"))
 
-        result = strategy.prepare_context(messages)
+        result = strategy.compact(messages)
 
         # Should have compacted
         assert len(result) < len(messages)
@@ -142,7 +142,7 @@ class TestHeadTailStrategy:
 
     def test_preserves_atomic_groups(self):
         """Tool calls and their results must stay together."""
-        strategy = HeadTailStrategy(token_budget=200, head_ratio=0.3)
+        strategy = HeadTailCompaction(token_budget=200, head_ratio=0.3)
 
         messages = [
             SystemMessage(content="System", source="system"),
@@ -187,7 +187,7 @@ class TestHeadTailStrategy:
             ),
         ]
 
-        result = strategy.prepare_context(messages)
+        result = strategy.compact(messages)
 
         # Check that tool calls and results stay together
         for i, msg in enumerate(result):
@@ -208,12 +208,12 @@ class TestHeadTailStrategy:
                 ), f"Tool call {call_id} missing its result in compacted messages"
 
 
-class TestSlidingWindowStrategy:
-    """Test SlidingWindowStrategy compaction logic."""
+class TestSlidingWindowCompaction:
+    """Test SlidingWindowCompaction logic."""
 
     def test_preserves_system_message(self):
         """System message should always be preserved."""
-        strategy = SlidingWindowStrategy(token_budget=100)
+        strategy = SlidingWindowCompaction(token_budget=100)
 
         messages = [
             SystemMessage(content="Important system prompt", source="system"),
@@ -222,7 +222,7 @@ class TestSlidingWindowStrategy:
         for i in range(20):
             messages.append(UserMessage(content=f"Message {i} " * 10, source="user"))
 
-        result = strategy.prepare_context(messages)
+        result = strategy.compact(messages)
 
         # System message should be first
         assert isinstance(result[0], SystemMessage)
@@ -230,7 +230,7 @@ class TestSlidingWindowStrategy:
 
     def test_keeps_recent_messages(self):
         """Should keep the most recent messages."""
-        strategy = SlidingWindowStrategy(token_budget=100)
+        strategy = SlidingWindowCompaction(token_budget=100)
 
         messages = [
             SystemMessage(content="System", source="system"),
@@ -239,7 +239,7 @@ class TestSlidingWindowStrategy:
             UserMessage(content="Recent message", source="user"),
         ]
 
-        result = strategy.prepare_context(messages)
+        result = strategy.compact(messages)
 
         # Should include the recent message
         contents = [getattr(m, "content", "") for m in result]
@@ -254,20 +254,20 @@ class TestCompactionInToolLoop:
 
     def test_strategy_protocol_compliance(self):
         """Verify strategies implement the protocol correctly."""
-        from picoagents.context_strategies import ContextStrategy
+        from picoagents.compaction import CompactionStrategy
 
         # All strategies should satisfy the protocol
-        assert isinstance(HeadTailStrategy(), ContextStrategy)
-        assert isinstance(SlidingWindowStrategy(), ContextStrategy)
-        assert isinstance(NoCompactionStrategy(), ContextStrategy)
+        assert isinstance(HeadTailCompaction(), CompactionStrategy)
+        assert isinstance(SlidingWindowCompaction(), CompactionStrategy)
+        assert isinstance(NoCompaction(), CompactionStrategy)
 
     def test_compaction_loop_simulation(self):
         """Simulate the agent tool loop to verify compaction behavior.
 
         This tests the CRITICAL pattern that MiniAgent uses:
-        `messages = strategy.prepare_context(messages)` - reassignment!
+        `messages = strategy.compact(messages)` - reassignment!
         """
-        strategy = HeadTailStrategy(token_budget=100)
+        strategy = HeadTailCompaction(token_budget=100)
 
         # Simulate the agent loop pattern
         messages = [
@@ -278,7 +278,7 @@ class TestCompactionInToolLoop:
         # Simulate 3 iterations of the tool loop
         for iteration in range(3):
             # === THIS IS THE KEY: Compaction happens BEFORE LLM call ===
-            messages = strategy.prepare_context(messages)
+            messages = strategy.compact(messages)
 
             # Simulate LLM response with tool call
             messages.append(
@@ -320,7 +320,7 @@ class TestCompactionInToolLoop:
             def __init__(self):
                 self.calls: List[tuple] = []  # (input_len, output_len)
 
-            def prepare_context(self, messages: List[Message]) -> List[Message]:
+            def compact(self, messages: List[Message]) -> List[Message]:
                 input_len = len(messages)
 
                 # Compact to 3 messages if over 5
@@ -341,7 +341,7 @@ class TestCompactionInToolLoop:
 
         # Simulate iterations
         for i in range(5):
-            messages = strategy.prepare_context(messages)
+            messages = strategy.compact(messages)
             # Add 2 messages per iteration
             messages.append(
                 AssistantMessage(content=f"Response {i}", source="assistant")
@@ -369,30 +369,30 @@ class TestStrategyStatistics:
     """Test that strategies track statistics correctly."""
 
     def test_head_tail_tracks_compaction_count(self):
-        strategy = HeadTailStrategy(token_budget=50)
+        strategy = HeadTailCompaction(token_budget=50)
 
         # First call - should compact
         messages1 = [
             SystemMessage(content="S", source="system"),
         ] + [UserMessage(content="M" * 50, source="user") for _ in range(10)]
-        strategy.prepare_context(messages1)
+        strategy.compact(messages1)
 
         # Second call - should compact again
         messages2 = messages1 + [
             UserMessage(content="More " * 50, source="user")
         ]
-        strategy.prepare_context(messages2)
+        strategy.compact(messages2)
 
         assert strategy.compaction_count == 2
 
     def test_head_tail_tracks_tokens_saved(self):
-        strategy = HeadTailStrategy(token_budget=50)
+        strategy = HeadTailCompaction(token_budget=50)
 
         messages = [
             SystemMessage(content="S", source="system"),
         ] + [UserMessage(content="Message " * 20, source="user") for _ in range(10)]
 
-        strategy.prepare_context(messages)
+        strategy.compact(messages)
 
         assert strategy.total_tokens_saved > 0
 
@@ -404,18 +404,18 @@ class TestEdgeCases:
     """Test edge cases and boundary conditions."""
 
     def test_empty_messages(self):
-        strategy = HeadTailStrategy(token_budget=100)
-        result = strategy.prepare_context([])
+        strategy = HeadTailCompaction(token_budget=100)
+        result = strategy.compact([])
         assert result == []
 
     def test_single_message(self):
-        strategy = HeadTailStrategy(token_budget=100)
+        strategy = HeadTailCompaction(token_budget=100)
         messages = [SystemMessage(content="Hello", source="system")]
-        result = strategy.prepare_context(messages)
+        result = strategy.compact(messages)
         assert len(result) == 1
 
-    def test_no_strategy_configured(self):
-        """Agent without strategy should work normally."""
+    def test_no_compaction_configured(self):
+        """Agent without compaction should work normally."""
         mock_client = MagicMock()
         mock_client.model = "gpt-4o"
 
@@ -424,10 +424,10 @@ class TestEdgeCases:
             description="Test",
             instructions="Test",
             model_client=mock_client,
-            context_strategy=None,  # No strategy
+            compaction=None,
         )
 
-        assert agent.context_strategy is None
+        assert agent.compaction is None
 
 
 if __name__ == "__main__":

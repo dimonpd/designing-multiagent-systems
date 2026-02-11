@@ -192,7 +192,7 @@ class TaskTool(BaseTool):
         try:
             # Lazy imports to avoid circular dependencies
             from ..agents import Agent
-            from ..context_strategies import HeadTailStrategy
+            from ..compaction import HeadTailCompaction
 
             # Get agent type config
             config = AGENT_TYPES.get(agent_type, AGENT_TYPES["general"])
@@ -218,7 +218,7 @@ class TaskTool(BaseTool):
                 instructions=config["instructions"],
                 model_client=client,
                 tools=sub_tools,
-                context_strategy=HeadTailStrategy(
+                compaction=HeadTailCompaction(
                     token_budget=self.token_budget,
                     head_ratio=0.2,
                 ),
@@ -759,6 +759,7 @@ class SkillsTool(BaseTool):
         builtin_path: Optional[Path] = None,
         user_path: Optional[Path] = None,
         project_path: Optional[Path] = None,
+        extra_paths: Optional[List[Path]] = None,
     ):
         """Create a skills tool.
 
@@ -766,6 +767,7 @@ class SkillsTool(BaseTool):
             builtin_path: Path to built-in skills (shipped with package)
             user_path: Path to user skills (defaults to ~/.picoagents/skills/)
             project_path: Path to project-local skills (highest priority)
+            extra_paths: Additional skill paths to search (appended after project_path)
         """
         super().__init__(
             name="skills",
@@ -789,6 +791,8 @@ class SkillsTool(BaseTool):
                 self.skill_paths.append(default_user)
         if project_path:
             self.skill_paths.append(project_path)
+        if extra_paths:
+            self.skill_paths.extend(extra_paths)
 
     @property
     def parameters(self) -> Dict[str, Any]:
@@ -1117,6 +1121,7 @@ def create_skills_tool(
     builtin_path: Optional[Path] = None,
     user_path: Optional[Path] = None,
     project_path: Optional[Path] = None,
+    extra_paths: Optional[List[Path]] = None,
 ) -> SkillsTool:
     """Create a skills tool for progressive disclosure.
 
@@ -1124,6 +1129,7 @@ def create_skills_tool(
         builtin_path: Path to built-in skills
         user_path: Path to user skills (defaults to ~/.picoagents/skills/)
         project_path: Path to project-local skills
+        extra_paths: Additional skill paths to search
 
     Returns:
         SkillsTool instance
@@ -1132,6 +1138,7 @@ def create_skills_tool(
         builtin_path=builtin_path,
         user_path=user_path,
         project_path=project_path,
+        extra_paths=extra_paths,
     )
 
 

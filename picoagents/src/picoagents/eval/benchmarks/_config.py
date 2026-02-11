@@ -18,14 +18,14 @@ class AgentConfig:
     """Complete agent configuration for benchmarking.
 
     An AgentConfig specifies all the knobs that can be tuned when comparing
-    agent performance: model, context strategy, system prompt, tools, etc.
+    agent performance: model, compaction strategy, system prompt, tools, etc.
 
     Example:
         >>> config = AgentConfig(
         ...     name="head_tail_gpt4o",
         ...     model_provider="azure",
         ...     model_name="gpt-4o-mini",
-        ...     context_strategy="head_tail",
+        ...     compaction="head_tail",
         ...     token_budget=50_000,
         ... )
         >>> agent = config.to_agent()
@@ -39,12 +39,13 @@ class AgentConfig:
     model_name: str = "gpt-4o-mini"
 
     # Context management
-    context_strategy: Optional[str] = None  # None, "head_tail", "sliding"
+    compaction: Optional[str] = None  # None, "head_tail", "sliding"
     token_budget: int = 50_000
     head_ratio: float = 0.3  # For head_tail strategy
 
     # Agent behavior
     system_prompt: str = "You are a helpful assistant."
+    instruction_preset: Optional[str] = None  # "general" - uses get_instructions() with dynamic tool guide
     tools: List[str] = field(default_factory=lambda: ["coding"])
     max_iterations: int = 30
 
@@ -52,6 +53,7 @@ class AgentConfig:
     temperature: float = 0.0
 
     # Tool configuration
+    workspace: Optional[str] = None  # Root directory for file tools (default: cwd)
     bash_timeout: int = 300  # 5 min timeout for bash (git clone, npm install, test suites, builds)
 
     # Additional kwargs passed to agent constructor
@@ -63,13 +65,15 @@ class AgentConfig:
             "name": self.name,
             "model_provider": self.model_provider,
             "model_name": self.model_name,
-            "context_strategy": self.context_strategy,
+            "compaction": self.compaction,
             "token_budget": self.token_budget,
             "head_ratio": self.head_ratio,
             "system_prompt": self.system_prompt,
+            "instruction_preset": self.instruction_preset,
             "tools": self.tools,
             "max_iterations": self.max_iterations,
             "temperature": self.temperature,
+            "workspace": self.workspace,
             "bash_timeout": self.bash_timeout,
             "extra_kwargs": self.extra_kwargs,
         }
@@ -81,11 +85,13 @@ class AgentConfig:
             name=data["name"],
             model_provider=data.get("model_provider", "openai"),
             model_name=data.get("model_name", "gpt-4o-mini"),
-            context_strategy=data.get("context_strategy"),
+            compaction=data.get("compaction"),
             token_budget=data.get("token_budget", 50_000),
             head_ratio=data.get("head_ratio", 0.3),
             system_prompt=data.get("system_prompt", "You are a helpful assistant."),
+            instruction_preset=data.get("instruction_preset"),
             tools=data.get("tools", ["coding"]),
+            workspace=data.get("workspace"),
             max_iterations=data.get("max_iterations", 30),
             temperature=data.get("temperature", 0.0),
             bash_timeout=data.get("bash_timeout", 300),
@@ -125,7 +131,7 @@ class AgentConfig:
             elif key == "tools":
                 params[key] = value.split("+")  # e.g., "coding+research"
             elif key == "strategy":
-                params["context_strategy"] = value if value != "none" else None
+                params["compaction"] = value if value != "none" else None
             elif key == "model":
                 params["model_name"] = value
             elif key == "provider":
@@ -148,11 +154,15 @@ class AgentConfig:
             from ...llm import AzureOpenAIChatCompletionClient
             import os
 
+            # Note: Some Azure models (e.g., gpt-5.2-chat) don't support
+            # temperature != 1.0. Only pass it if explicitly set to non-zero.
+            temp = self.temperature if self.temperature > 0 else None
             return AzureOpenAIChatCompletionClient(
                 azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
                 azure_deployment=os.environ.get("AZURE_OPENAI_DEPLOYMENT", self.model_name),
                 api_key=os.environ["AZURE_OPENAI_API_KEY"],
                 api_version=os.environ.get("AZURE_OPENAI_API_VERSION", "2024-02-15-preview"),
+                temperature=temp,
             )
         elif self.model_provider == "anthropic":
             from ...llm import AnthropicChatCompletionClient
@@ -165,37 +175,41 @@ class AgentConfig:
         else:
             raise ValueError(f"Unknown model provider: {self.model_provider}")
 
-    def _create_context_strategy(self):
-        """Create context strategy based on configuration."""
-        if self.context_strategy is None or self.context_strategy == "none":
-            from ...context_strategies import NoCompactionStrategy
+    def _create_compaction(self):
+        """Create compaction strategy based on configuration."""
+        if self.compaction is None or self.compaction == "none":
+            from ...compaction import NoCompaction
 
-            return NoCompactionStrategy()
-        elif self.context_strategy == "head_tail":
-            from ...context_strategies import HeadTailStrategy
+            return NoCompaction()
+        elif self.compaction == "head_tail":
+            from ...compaction import HeadTailCompaction
 
-            return HeadTailStrategy(
+            return HeadTailCompaction(
                 token_budget=self.token_budget,
                 head_ratio=self.head_ratio,
             )
-        elif self.context_strategy == "sliding":
-            from ...context_strategies import SlidingWindowStrategy
+        elif self.compaction == "sliding":
+            from ...compaction import SlidingWindowCompaction
 
-            return SlidingWindowStrategy(
+            return SlidingWindowCompaction(
                 token_budget=self.token_budget,
             )
         else:
-            raise ValueError(f"Unknown context strategy: {self.context_strategy}")
+            raise ValueError(f"Unknown compaction strategy: {self.compaction}")
 
     def _create_tools(self):
         """Create tools based on configuration."""
         from ...tools import create_coding_tools, create_core_tools
 
+        workspace = Path(self.workspace) if self.workspace else None
         all_tools = []
 
         for tool_category in self.tools:
             if tool_category == "coding":
-                all_tools.extend(create_coding_tools(bash_timeout=self.bash_timeout))
+                all_tools.extend(create_coding_tools(
+                    workspace=workspace,
+                    bash_timeout=self.bash_timeout,
+                ))
             elif tool_category == "core":
                 all_tools.extend(create_core_tools())
             # Add more categories as needed
@@ -214,16 +228,28 @@ class AgentConfig:
         from ...agents import Agent
 
         model_client = self._create_model_client()
-        context_strategy = self._create_context_strategy()
+        compaction = self._create_compaction()
         tools = self._create_tools()
+
+        # Resolve instructions: preset takes priority over raw system_prompt
+        if self.instruction_preset:
+            from ..._instructions import get_instructions
+
+            tool_names = [t.name for t in tools]
+            instructions = get_instructions(
+                preset=self.instruction_preset,
+                tool_names=tool_names,
+            )
+        else:
+            instructions = self.system_prompt
 
         return Agent(
             name=self.name,
             description=f"Benchmark agent: {self.name}",
-            instructions=self.system_prompt,
+            instructions=instructions,
             model_client=model_client,
             tools=tools,
-            context_strategy=context_strategy,
+            compaction=compaction,
             max_iterations=self.max_iterations,
             middlewares=middlewares or [],
             **self.extra_kwargs,
@@ -232,5 +258,5 @@ class AgentConfig:
     def __repr__(self) -> str:
         return (
             f"AgentConfig(name={self.name!r}, model={self.model_provider}:{self.model_name}, "
-            f"strategy={self.context_strategy}, budget={self.token_budget})"
+            f"strategy={self.compaction}, budget={self.token_budget})"
         )

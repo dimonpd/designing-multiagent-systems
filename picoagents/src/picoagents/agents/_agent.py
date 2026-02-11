@@ -320,11 +320,11 @@ class Agent(Component[AgentConfig], BaseAgent):
                         raise asyncio.CancelledError()
 
                     # === CONTEXT COMPACTION HOOK ===
-                    # Apply context strategy BEFORE each LLM call.
+                    # Apply compaction strategy BEFORE each LLM call.
                     # This is critical: the compacted list REPLACES llm_messages,
                     # so subsequent iterations work with bounded context.
-                    if self.context_strategy:
-                        llm_messages = self.context_strategy.prepare_context(llm_messages)
+                    if self.compaction:
+                        llm_messages = self.compaction.compact(llm_messages)
 
                     # Get tools for LLM if available
                     tools = self._get_tools_for_llm() if self.tools else None

@@ -328,8 +328,8 @@ def _benchmark_run(args: argparse.Namespace) -> None:
             # Default configurations for comparison
             print("Using default configurations (baseline vs head_tail)")
             configs = [
-                AgentConfig(name="baseline", context_strategy=None),
-                AgentConfig(name="head_tail", context_strategy="head_tail"),
+                AgentConfig(name="baseline", compaction=None),
+                AgentConfig(name="head_tail", compaction="head_tail"),
             ]
 
         print(f"Configurations: {[c.name for c in configs]}")

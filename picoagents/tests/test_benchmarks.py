@@ -127,7 +127,7 @@ class TestAgentConfig:
         assert config.name == "test"
         assert config.model_provider == "openai"
         assert config.model_name == "gpt-4o-mini"
-        assert config.context_strategy is None
+        assert config.compaction is None
         assert config.token_budget == 50_000
         assert config.max_iterations == 30  # Actual default
 
@@ -137,7 +137,7 @@ class TestAgentConfig:
             name="full_test",
             model_provider="anthropic",
             model_name="claude-3-opus",
-            context_strategy="head_tail",
+            compaction="head_tail",
             token_budget=100_000,
             system_prompt="You are a helpful assistant.",
             max_iterations=50,
@@ -148,7 +148,7 @@ class TestAgentConfig:
         assert config.name == "full_test"
         assert config.model_provider == "anthropic"
         assert config.model_name == "claude-3-opus"
-        assert config.context_strategy == "head_tail"
+        assert config.compaction == "head_tail"
         assert config.token_budget == 100_000
         assert config.max_iterations == 50
         assert "coding" in config.tools
@@ -159,7 +159,7 @@ class TestAgentConfig:
         original = AgentConfig(
             name="serial_test",
             model_provider="azure",
-            context_strategy="sliding",
+            compaction="sliding",
             token_budget=75_000,
             extra_kwargs={"test": True},
         )
@@ -169,7 +169,7 @@ class TestAgentConfig:
 
         assert restored.name == original.name
         assert restored.model_provider == original.model_provider
-        assert restored.context_strategy == original.context_strategy
+        assert restored.compaction == original.compaction
         assert restored.token_budget == original.token_budget
         assert restored.extra_kwargs == original.extra_kwargs
 
@@ -182,7 +182,7 @@ class TestAgentConfig:
         """Test parsing config from CLI string with parameters."""
         config = AgentConfig.from_string("my_config:strategy=head_tail,budget=80000")
         assert config.name == "my_config"
-        assert config.context_strategy == "head_tail"
+        assert config.compaction == "head_tail"
         # Note: budget maps to token_budget
 
 
@@ -723,8 +723,8 @@ class TestBenchmarkIntegration:
         """Test complete benchmark workflow."""
         # 1. Create configurations
         configs = [
-            AgentConfig(name="baseline", context_strategy=None),
-            AgentConfig(name="head_tail", context_strategy="head_tail"),
+            AgentConfig(name="baseline", compaction=None),
+            AgentConfig(name="head_tail", compaction="head_tail"),
         ]
 
         # 2. Create dataset

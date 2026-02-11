@@ -43,6 +43,9 @@ from ._middleware import (
     RateLimitMiddleware,
 )
 
+# Instruction presets
+from ._instructions import get_instructions
+
 # Deterministic loop hooks
 from ._hooks import (
     BaseEndHook,
@@ -96,12 +99,12 @@ from .context import (
     ToolApprovalResponse,
 )
 
-# Context strategies for compaction
-from .context_strategies import (
-    ContextStrategy,
-    HeadTailStrategy,
-    NoCompactionStrategy,
-    SlidingWindowStrategy,
+# Compaction strategies
+from .compaction import (
+    CompactionStrategy,
+    HeadTailCompaction,
+    NoCompaction,
+    SlidingWindowCompaction,
 )
 
 # Core message types
@@ -169,11 +172,11 @@ __all__ = [
     "AgentContext",
     "ToolApprovalRequest",
     "ToolApprovalResponse",
-    # Context Strategies
-    "ContextStrategy",
-    "HeadTailStrategy",
-    "SlidingWindowStrategy",
-    "NoCompactionStrategy",
+    # Compaction
+    "CompactionStrategy",
+    "HeadTailCompaction",
+    "SlidingWindowCompaction",
+    "NoCompaction",
     # Messages
     "Message",
     "SystemMessage",
@@ -261,6 +264,8 @@ __all__ = [
     "ModelEvalTarget",
     "OrchestratorEvalTarget",
     "LLMEvalJudge",
+    # Instructions
+    "get_instructions",
     # Middleware
     "BaseMiddleware",
     "MiddlewareContext",
