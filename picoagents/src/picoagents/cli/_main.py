@@ -102,7 +102,7 @@ Examples:
         epilog="""
 Examples:
   picoagents benchmark list                          # List built-in datasets
-  picoagents benchmark run context_engineering_v1   # Run built-in dataset
+  picoagents benchmark run coding_v1                # Run built-in dataset
   picoagents benchmark run ./my_dataset.json        # Run custom dataset
   picoagents benchmark run dataset.json -c configs.json  # With config file
   picoagents benchmark results                      # List saved results

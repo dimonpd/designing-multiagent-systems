@@ -5,6 +5,25 @@ All notable changes to PicoAgents will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-02-05
+
+### Added
+
+- **Deterministic loop hooks** (`_hooks.py`): `BaseStartHook` and `BaseEndHook` for injecting instructions before the first LLM call and resuming the loop when the agent would stop. Includes `PlanningHook` (forces task planning) and `CompletionCheckHook` (verifies todo completion before allowing stop). Composable `TerminationCondition` with `|` / `&` operators.
+- **Context compaction strategies** (`compaction.py`): `CompactionStrategy` protocol called before each LLM call. `HeadTailCompaction` preserves system prompt + recent work while dropping middle messages, respecting atomic groups (tool calls + results stay together). `SlidingWindowCompaction` keeps system message + most recent messages. `NoCompaction` baseline for benchmarking. Token counting via tiktoken with character-estimation fallback.
+- **Context engineering tools** (`tools/_context_tools.py`): `TaskTool` for spawning sub-agents in isolated contexts (explore, research, general types). `TodoWriteTool` / `TodoReadTool` / `TodoListSessionsTool` for file-backed task tracking with session management. `SkillsTool` for progressive disclosure via SKILL.md files. `MultiEditTool` for atomic multi-file edits. Factory function `create_context_engineering_tools()`.
+- **Benchmark CLI system** (`eval/benchmarks/`): `picoagents benchmark list|run|results` CLI commands. Built-in datasets (`coding_v1`, `repo_analysis_v1`). `AgentConfig` for declarative agent configuration comparison. `BenchmarkRunner`, `BenchmarkMiddleware`, and analysis formatters. Targets: `PicoAgentTarget`, `ClaudeCodeTarget`, `CallableTarget`.
+- **Instruction presets** (`_instructions.py`): `get_instructions()` for loading reusable system prompt templates.
+- **Built-in skills** (`skills/`): Shipped code-review skill with SKILL.md frontmatter format.
+- **From-scratch book examples** (`from_scratch/`): Four progressive files building a minimal agent from zero - core loop, tools, memory, streaming - with API compatibility test.
+
+### Changed
+
+- Agent `__init__` accepts `compaction`, `start_hooks`, and `end_hooks` parameters
+- Agent tool loop integrates compaction (before each LLM call) and hooks (before first call, on exit)
+- Renamed `context_strategy` parameter to `compaction` for clarity
+- Renamed strategy classes: `HeadTailStrategy` → `HeadTailCompaction`, `SlidingWindowStrategy` → `SlidingWindowCompaction`, `NoCompactionStrategy` → `NoCompaction`, `ContextStrategy` → `CompactionStrategy`
+
 ## [0.3.2] - 2025-12-28
 
 ### Fixed

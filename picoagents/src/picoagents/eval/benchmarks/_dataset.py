@@ -272,7 +272,7 @@ def load_builtin_dataset(name: str) -> BenchmarkDataset:
     """Load a built-in benchmark dataset.
 
     Args:
-        name: Dataset name (e.g., "context_engineering_v1")
+        name: Dataset name (e.g., "coding_v1")
 
     Returns:
         BenchmarkDataset instance

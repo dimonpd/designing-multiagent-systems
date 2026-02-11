@@ -294,14 +294,14 @@ class TestBuiltinDatasets:
         datasets = list_builtin_datasets()
 
         assert isinstance(datasets, list)
-        assert "context_engineering_v1" in datasets
+        assert "coding_v1" in datasets
 
     def test_load_builtin_dataset(self):
         """Test loading a built-in dataset."""
-        dataset = load_builtin_dataset("context_engineering_v1")
+        dataset = load_builtin_dataset("coding_v1")
 
         assert dataset is not None
-        assert dataset.name == "context_engineering_v1"
+        assert dataset.name == "coding_v1"
         assert len(list(dataset.tasks)) > 0
 
     def test_load_nonexistent_dataset(self):

@@ -15,7 +15,7 @@ Example:
     >>> from picoagents.eval import LLMEvalJudge
     >>>
     >>> # Load dataset
-    >>> dataset = load_builtin_dataset("context_engineering_v1")
+    >>> dataset = load_builtin_dataset("coding_v1")
     >>>
     >>> # Define configurations to compare
     >>> configs = [

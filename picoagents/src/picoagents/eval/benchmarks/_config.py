@@ -148,7 +148,6 @@ class AgentConfig:
 
             return OpenAIChatCompletionClient(
                 model=self.model_name,
-                temperature=self.temperature,
             )
         elif self.model_provider == "azure":
             from ...llm import AzureOpenAIChatCompletionClient
