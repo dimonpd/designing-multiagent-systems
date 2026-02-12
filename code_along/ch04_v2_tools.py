@@ -1,5 +1,5 @@
 """
-PicoAgents From Scratch - Chapter 4.2: Adding Tools
+PicoAgents Code Along - Chapter 4.2: Adding Tools
 
 Builds on v1 by adding tool calling. Same API as picoagents.
 
@@ -22,7 +22,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 
-from openai import AsyncAzureOpenAI
+from openai import AsyncAzureOpenAI, NOT_GIVEN
 
 
 @dataclass
@@ -113,7 +113,7 @@ class Agent:
         self._memory = memory
 
         self._tools: Dict[str, Callable] = {}
-        self._tool_schemas: List[Dict] = []
+        self._tool_schemas: List[Any] = []
         if tools:
             for tool in tools:
                 self._tools[tool.__name__] = tool
@@ -132,7 +132,7 @@ class Agent:
     async def run(self, task: str) -> AgentResponse:
         """Execute agent with tool calling loop."""
         all_messages: List[Message] = [Message(content=task, source="user")]
-        api_messages = [
+        api_messages: List[Any] = [
             {"role": "system", "content": self.instructions},
             {"role": "user", "content": task}
         ]
@@ -141,7 +141,7 @@ class Agent:
             response = await self._client.chat.completions.create(
                 model=self.model,
                 messages=api_messages,
-                tools=self._tool_schemas if self._tool_schemas else None
+                tools=self._tool_schemas if self._tool_schemas else NOT_GIVEN
             )
 
             msg = response.choices[0].message
@@ -157,14 +157,14 @@ class Agent:
                 "content": msg.content,
                 "tool_calls": [
                     {"id": tc.id, "type": "function",
-                     "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
+                     "function": {"name": tc.function.name, "arguments": tc.function.arguments}}  # type: ignore[union-attr]
                     for tc in msg.tool_calls
                 ]
             })
 
             for tc in msg.tool_calls:
-                name = tc.function.name
-                args = json.loads(tc.function.arguments)
+                name = tc.function.name  # type: ignore[union-attr]
+                args = json.loads(tc.function.arguments)  # type: ignore[union-attr]
                 print(f"  [tool] {name}({args})")
 
                 result = self._execute_tool(name, args)
@@ -192,7 +192,7 @@ def calculate(expression: str) -> str:
 
 
 async def main():
-    print("=== From Scratch v2: With Tools ===\n")
+    print("=== Code Along v2: With Tools ===\n")
 
     agent = Agent(
         name="assistant",

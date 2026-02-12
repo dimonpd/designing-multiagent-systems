@@ -128,7 +128,7 @@ response = await agent.run("What's the weather in Paris?")
 print(response.messages[-1].content)
 ```
 
-**Want a simpler starting point?** The [`from_scratch/`](from_scratch/) directory builds a minimal agent from zero in four progressive steps: [core agent loop](from_scratch/ch04_v1_agent.py) → [tool calling](from_scratch/ch04_v2_tools.py) → [memory](from_scratch/ch04_v3_memory.py) → [streaming](from_scratch/ch04_v4_streaming.py). PicoAgents is an expanded, production-ready version of the same ideas.
+**Want a simpler starting point?** The [`code_along/`](code_along/) directory builds a minimal agent from zero in four progressive steps: [core agent loop](code_along/ch04_v1_agent.py) → [tool calling](code_along/ch04_v2_tools.py) → [memory](code_along/ch04_v3_memory.py) → [streaming](code_along/ch04_v4_streaming.py). PicoAgents is an expanded, production-ready version of the same ideas.
 
 ### Model Client Setup
 

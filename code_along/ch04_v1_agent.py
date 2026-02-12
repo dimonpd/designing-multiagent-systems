@@ -1,5 +1,5 @@
 """
-PicoAgents From Scratch - Chapter 4.1: The Core Agent
+PicoAgents Code Along - Chapter 4.1: The Core Agent
 
 Minimal Agent with the SAME API as picoagents. Swap the import to use full library.
 
@@ -19,7 +19,7 @@ Model Client: Uses Azure OpenAI. For other clients:
 
 import asyncio
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from openai import AsyncAzureOpenAI
 
@@ -80,7 +80,7 @@ class Agent:
 
     async def run(self, task: str) -> AgentResponse:
         """Execute agent on a task."""
-        messages = [
+        messages: List[Any] = [
             {"role": "system", "content": self.instructions},
             {"role": "user", "content": task}
         ]
@@ -101,7 +101,7 @@ class Agent:
 
 
 async def main():
-    print("=== From Scratch v1: Core Agent ===\n")
+    print("=== Code Along v1: Core Agent ===\n")
 
     agent = Agent(
         name="assistant",

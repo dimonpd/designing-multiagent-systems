@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Benchmark CLI system** (`eval/benchmarks/`): `picoagents benchmark list|run|results` CLI commands. Built-in datasets (`coding_v1`, `repo_analysis_v1`). `AgentConfig` for declarative agent configuration comparison. `BenchmarkRunner`, `BenchmarkMiddleware`, and analysis formatters. Targets: `PicoAgentTarget`, `ClaudeCodeTarget`, `CallableTarget`.
 - **Instruction presets** (`_instructions.py`): `get_instructions()` for loading reusable system prompt templates.
 - **Built-in skills** (`skills/`): Shipped code-review skill with SKILL.md frontmatter format.
-- **From-scratch book examples** (`from_scratch/`): Four progressive files building a minimal agent from zero - core loop, tools, memory, streaming - with API compatibility test.
+- **Code-along book examples** (`code_along/`): Four progressive files building a minimal agent from zero - core loop, tools, memory, streaming - with API compatibility test.
 
 ### Changed
 

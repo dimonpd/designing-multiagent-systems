@@ -1,4 +1,4 @@
-# PicoAgents From Scratch
+# PicoAgents Code Along
 
 Minimal, progressive implementations of the picoagents library - **same API, fewer lines**.
 
@@ -33,7 +33,7 @@ python ch04_v4_streaming.py
 ## Same API as Full Library
 
 ```python
-# From scratch version
+# Code-along version
 from ch04_v2_tools import Agent
 
 # Full library - just change the import
@@ -51,7 +51,7 @@ print(response.final_content)
 
 ## What's Included vs Omitted
 
-| Feature | From Scratch | Full Library |
+| Feature | Code Along | Full Library |
 |---------|--------------|--------------|
 | Agent class | ✓ | ✓ |
 | `run()` method | ✓ | ✓ |

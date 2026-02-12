@@ -1,21 +1,25 @@
 """
-Test that from_scratch implementations have compatible APIs with picoagents.
+Test that code_along implementations have compatible APIs with picoagents.
 
 Run: python test_compatibility.py
 """
 
 import asyncio
 import sys
+from typing import TYPE_CHECKING
 
 # Toggle which implementation to test
 USE_FULL_LIBRARY = "--full" in sys.argv
 
-if USE_FULL_LIBRARY:
+if TYPE_CHECKING:
+    # For static analysis, always use code_along types
+    from ch04_v4_streaming import Agent, ListMemory
+elif USE_FULL_LIBRARY:
     print("Testing: picoagents (full library)")
-    from picoagents import Agent
-    from picoagents.memory import ListMemory
+    from picoagents import Agent  # type: ignore[assignment]
+    from picoagents.memory import ListMemory  # type: ignore[assignment]
 else:
-    print("Testing: from_scratch (v4)")
+    print("Testing: code_along (v4)")
     from ch04_v4_streaming import Agent, ListMemory
 
 

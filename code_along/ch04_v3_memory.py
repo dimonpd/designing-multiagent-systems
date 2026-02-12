@@ -1,16 +1,17 @@
 """
-PicoAgents From Scratch - Chapter 4.4: Adding Streaming
+PicoAgents Code Along - Chapter 4.3: Adding Memory
 
-Builds on v3 by adding streaming support. Same API as picoagents.
+Builds on v2 by adding memory for context across conversations. Same API as picoagents.
 
 What this adds:
-- run_stream() async generator for real-time output
-- Event types for different stages (tool calls, results, etc.)
+- ListMemory for in-memory storage
+- Message history persists across run() calls
+- Memory context injected into prompts
 
-What's omitted (see full library):
-- Middleware, OpenTelemetry, CancellationTokens, Component serialization
+What's omitted (see later versions or full library):
+- Streaming, Middleware, BaseMemory abstract class, vector/RAG memory
 
-Run: python ch04_v4_streaming.py
+Run: python ch04_v3_memory.py
 
 Model Client: Uses Azure OpenAI. See ch04_v1_agent.py for alternatives.
 """
@@ -19,9 +20,9 @@ import asyncio
 import inspect
 import json
 from dataclasses import dataclass, field
-from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional
 
-from openai import AsyncAzureOpenAI
+from openai import AsyncAzureOpenAI, NOT_GIVEN
 
 
 @dataclass
@@ -50,24 +51,6 @@ class AgentResponse:
         return ""
 
 
-# --- Events for streaming ---
-
-@dataclass
-class ToolCallEvent:
-    """Emitted when agent calls a tool."""
-    tool_name: str
-    parameters: Dict[str, Any]
-    source: str = ""
-
-
-@dataclass
-class ToolResultEvent:
-    """Emitted when tool returns result."""
-    tool_name: str
-    result: str
-    source: str = ""
-
-
 # --- Memory ---
 
 @dataclass
@@ -77,6 +60,8 @@ class MemoryItem:
 
 
 class ListMemory:
+    """Simple list-based memory - same interface as picoagents.memory.ListMemory."""
+
     def __init__(self, max_memories: int = 100):
         self.memories: List[MemoryItem] = []
         self.max_memories = max_memories
@@ -86,8 +71,16 @@ class ListMemory:
         if len(self.memories) > self.max_memories:
             self.memories = self.memories[-self.max_memories:]
 
+    async def query(self, query: str, max_results: int = 10) -> List[str]:
+        query_lower = query.lower()
+        return [m.content for m in reversed(self.memories)
+                if query_lower in m.content.lower()][:max_results]
+
     async def get_context(self, max_items: int = 10) -> List[str]:
         return [m.content for m in self.memories[-max_items:]]
+
+    async def clear(self) -> None:
+        self.memories = []
 
 
 # --- Tool utilities ---
@@ -119,17 +112,13 @@ def _function_to_schema(func: Callable) -> Dict[str, Any]:
     }
 
 
-# Type alias for stream items
-StreamItem = Union[Message, ToolCallEvent, ToolResultEvent, AgentResponse]
-
-
 # --- Agent ---
 
 class Agent:
     """
-    Agent with streaming support - same interface as picoagents.Agent.
+    Agent with tools and memory - same interface as picoagents.Agent.
 
-    Provides both run() and run_stream() methods.
+    Memory enables conversation context across multiple run() calls.
     """
 
     def __init__(
@@ -150,7 +139,7 @@ class Agent:
         self.memory = memory
 
         self._tools: Dict[str, Callable] = {}
-        self._tool_schemas: List[Dict] = []
+        self._tool_schemas: List[Any] = []
         if tools:
             for tool in tools:
                 self._tools[tool.__name__] = tool
@@ -176,28 +165,11 @@ class Agent:
         return system_content
 
     async def run(self, task: str) -> AgentResponse:
-        """Execute agent and return final response."""
-        response = None
-        async for item in self.run_stream(task):
-            if isinstance(item, AgentResponse):
-                response = item
-        return response or AgentResponse(messages=[], source=self.name)
-
-    async def run_stream(self, task: str) -> AsyncGenerator[StreamItem, None]:
-        """
-        Execute agent with streaming output.
-
-        Yields messages and events as they occur, enabling real-time UI updates.
-        """
-        all_messages: List[Message] = []
-
-        # Yield user message
-        user_msg = Message(content=task, source="user")
-        all_messages.append(user_msg)
-        yield user_msg
+        """Execute agent with memory support."""
+        all_messages: List[Message] = [Message(content=task, source="user")]
 
         system_content = await self._prepare_system_message()
-        api_messages = [{"role": "system", "content": system_content}]
+        api_messages: List[Any] = [{"role": "system", "content": system_content}]
         api_messages.extend(self._message_history)
         api_messages.append({"role": "user", "content": task})
 
@@ -205,28 +177,25 @@ class Agent:
             response = await self._client.chat.completions.create(
                 model=self.model,
                 messages=api_messages,
-                tools=self._tool_schemas if self._tool_schemas else None
+                tools=self._tool_schemas if self._tool_schemas else NOT_GIVEN
             )
 
             msg = response.choices[0].message
 
             if not msg.tool_calls:
                 content = msg.content or ""
-                assistant_msg = Message(content=content, source="assistant")
-                all_messages.append(assistant_msg)
-                yield assistant_msg
+                all_messages.append(Message(content=content, source="assistant"))
 
-                # Update history
+                # Update history for next run()
                 self._message_history.append({"role": "user", "content": task})
                 self._message_history.append({"role": "assistant", "content": content})
 
+                # Store in memory
                 if self.memory:
                     await self.memory.add(f"User: {task[:100]}")
                     await self.memory.add(f"Assistant: {content[:100]}")
 
-                # Yield final response
-                yield AgentResponse(messages=all_messages, source=self.name)
-                return
+                return AgentResponse(messages=all_messages, source=self.name)
 
             # Execute tool calls
             api_messages.append({
@@ -234,77 +203,70 @@ class Agent:
                 "content": msg.content,
                 "tool_calls": [
                     {"id": tc.id, "type": "function",
-                     "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
+                     "function": {"name": tc.function.name, "arguments": tc.function.arguments}}  # type: ignore[union-attr]
                     for tc in msg.tool_calls
                 ]
             })
 
             for tc in msg.tool_calls:
-                name = tc.function.name
-                args = json.loads(tc.function.arguments)
-
-                # Yield tool call event
-                yield ToolCallEvent(tool_name=name, parameters=args, source=self.name)
+                name = tc.function.name  # type: ignore[union-attr]
+                args = json.loads(tc.function.arguments)  # type: ignore[union-attr]
+                print(f"  [tool] {name}({args})")
 
                 result = self._execute_tool(name, args)
+                print(f"  [result] {result}")
 
-                # Yield tool result event
-                yield ToolResultEvent(tool_name=name, result=result, source=self.name)
-
-                tool_msg = ToolMessage(content=result, tool_call_id=tc.id, tool_name=name)
-                all_messages.append(tool_msg)
-                yield tool_msg
-
+                all_messages.append(ToolMessage(content=result, tool_call_id=tc.id, tool_name=name))
                 api_messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
 
-        # Max iterations
-        final_msg = Message(content="Max iterations reached.", source="assistant")
-        all_messages.append(final_msg)
-        yield final_msg
-        yield AgentResponse(messages=all_messages, source=self.name)
+        all_messages.append(Message(content="Max iterations reached.", source="assistant"))
+        return AgentResponse(messages=all_messages, source=self.name)
 
     def reset(self) -> None:
+        """Clear conversation history (memory persists)."""
         self._message_history = []
 
 
-# Example tools
+# Example tool
 def get_weather(location: str) -> str:
     """Get current weather for a location."""
     return f"The weather in {location} is sunny, 72°F"
 
 
-def calculate(expression: str) -> str:
-    """Evaluate a math expression."""
-    try:
-        return f"{expression} = {eval(expression)}"
-    except Exception as e:
-        return f"Error: {e}"
-
-
 async def main():
-    print("=== From Scratch v4: With Streaming ===\n")
+    print("=== Code Along v3: With Memory ===\n")
 
+    memory = ListMemory()
     agent = Agent(
         name="assistant",
-        instructions="You are helpful. Use tools when appropriate.",
+        instructions="You are helpful. Remember what the user tells you.",
         model="gpt-4.1-mini",
-        tools=[get_weather, calculate]
+        tools=[get_weather],
+        memory=memory
     )
 
-    print("Query: What's the weather in Tokyo and what is 15 * 24?\n")
-    print("--- Streaming events ---")
+    # First conversation
+    print("--- Turn 1 ---")
+    print("User: My name is Alice and I live in Paris.")
+    r1 = await agent.run("My name is Alice and I live in Paris.")
+    print(f"Agent: {r1.final_content}\n")
 
-    async for item in agent.run_stream("What's the weather in Tokyo and what is 15 * 24?"):
-        if isinstance(item, Message):
-            prefix = f"[{item.source}]"
-            print(f"{prefix} {item.content[:80]}{'...' if len(item.content) > 80 else ''}")
-        elif isinstance(item, ToolCallEvent):
-            print(f"[tool_call] {item.tool_name}({item.parameters})")
-        elif isinstance(item, ToolResultEvent):
-            print(f"[tool_result] {item.result}")
-        elif isinstance(item, AgentResponse):
-            print(f"\n--- Final Response ---")
-            print(f"Agent: {item.final_content}")
+    # Second conversation - agent should remember
+    print("--- Turn 2 ---")
+    print("User: What's the weather where I live?")
+    r2 = await agent.run("What's the weather where I live?")
+    print(f"Agent: {r2.final_content}\n")
+
+    # Third conversation
+    print("--- Turn 3 ---")
+    print("User: What's my name?")
+    r3 = await agent.run("What's my name?")
+    print(f"Agent: {r3.final_content}\n")
+
+    # Show memory
+    print("--- Memory ---")
+    for item in await memory.get_context(10):
+        print(f"  {item}")
 
 
 if __name__ == "__main__":
